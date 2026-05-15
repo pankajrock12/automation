@@ -27,7 +27,7 @@ def extract_lookup_code(item):
         if "S" in lookup_code:
             return lookup_code["S"]
 
-        return str(lookup_code)
+        return json.dumps(lookup_code)
 
     return str(lookup_code)
 
@@ -46,13 +46,15 @@ def compare_table(base_items, compare_items):
 
         lookup_code = extract_lookup_code(item)
 
-        compare_lookup[lookup_code] = item
+        compare_lookup[str(lookup_code)] = item
 
     for base_item in base_items:
 
         lookup_code = extract_lookup_code(base_item)
 
-        compare_item = compare_lookup.get(lookup_code)
+        compare_item = compare_lookup.get(
+            str(lookup_code)
+        )
 
         if compare_item is None:
 
@@ -65,8 +67,15 @@ def compare_table(base_items, compare_items):
 
             continue
 
-        base_json = json.dumps(base_item, sort_keys=True)
-        compare_json = json.dumps(compare_item, sort_keys=True)
+        base_json = json.dumps(
+            base_item,
+            sort_keys=True
+        )
+
+        compare_json = json.dumps(
+            compare_item,
+            sort_keys=True
+        )
 
         if base_json == compare_json:
 
@@ -92,17 +101,21 @@ def compare_table(base_items, compare_items):
 def compare_two_env(base_env, compare_env):
 
     base_snapshot = load_snapshot(base_env)
-    compare_snapshot = load_snapshot(compare_env)
 
-    final_details = []
+    compare_snapshot = load_snapshot(compare_env)
 
     total_matched = 0
     total_different = 0
     total_missing = 0
 
+    final_details = []
+
     for table_name, base_items in base_snapshot.items():
 
-        compare_items = compare_snapshot.get(table_name, [])
+        compare_items = compare_snapshot.get(
+            table_name,
+            []
+        )
 
         result = compare_table(
             base_items,
