@@ -1,144 +1,71 @@
-import os
-import json
 import boto3
-from botocore.config import Config
-from botocore.exceptions import ClientError
+import json
+import os
 
-from config import AWS_CONFIGS, TABLES
-
+from config import TABLES, AWS_CONFIGS
 
 SNAPSHOT_DIR = "snapshots"
 
 os.makedirs(SNAPSHOT_DIR, exist_ok=True)
 
 
-def get_dynamodb_client(env_name):
+def scan_table(table_name, aws_config):
 
-    env = AWS_CONFIGS[env_name]
-
-    session = boto3.Session(
-        aws_access_key_id=env["aws_access_key_id"],
-        aws_secret_access_key=env["aws_secret_access_key"],
-        aws_session_token=env.get("aws_session_token"),
-        region_name=env["region"]
-    )
-
-    client = session.client(
+    dynamodb = boto3.resource(
         "dynamodb",
-        verify=False,
-        config=Config(
-            retries={"max_attempts": 3},
-            connect_timeout=60,
-            read_timeout=60
-        )
+        region_name=aws_config["region"],
+        aws_access_key_id=aws_config["access_key"],
+        aws_secret_access_key=aws_config["secret_key"]
     )
 
-    return client
+    table = dynamodb.Table(table_name)
+
+    response = table.scan()
+
+    items = response.get("Items", [])
+
+    return items
 
 
-def scan_table(client, table_name):
-
-    all_items = []
-
-    response = client.scan(TableName=table_name)
-
-    all_items.extend(response.get("Items", []))
-
-    while "LastEvaluatedKey" in response:
-
-        response = client.scan(
-            TableName=table_name,
-            ExclusiveStartKey=response["LastEvaluatedKey"]
-        )
-
-        all_items.extend(response.get("Items", []))
-
-    return all_items
-
-
-def save_snapshot(env_name):
+def save_snapshot(env):
 
     try:
-
-        print(f"\n========== {env_name} SNAPSHOT START ==========")
-
-        client = get_dynamodb_client(env_name)
 
         snapshot_data = {}
 
         summary = []
 
-        for table_name in TABLES:
+        aws_config = AWS_CONFIGS[env]
 
-            try:
+        for table_name in TABLES[env]:
 
-                print(f"\nScanning table: {table_name}")
+            items = scan_table(table_name, aws_config)
 
-                items = scan_table(client, table_name)
+            snapshot_data[table_name] = items
 
-                print(f"Items found: {len(items)}")
-
-                if len(items) > 0:
-                    print("First item sample:")
-                    print(items[0])
-
-                snapshot_data[table_name] = items
-
-                summary.append({
-                    "table": table_name,
-                    "records": len(items)
-                })
-
-            except Exception as table_error:
-
-                print(f"Error scanning table {table_name}")
-                print(str(table_error))
-
-                snapshot_data[table_name] = []
-
-                summary.append({
-                    "table": table_name,
-                    "records": 0,
-                    "error": str(table_error)
-                })
+            summary.append({
+                "table": table_name,
+                "records": len(items)
+            })
 
         file_path = os.path.join(
             SNAPSHOT_DIR,
-            f"{env_name.lower()}_snapshot.json"
+            f"{env.lower()}_snapshot.json"
         )
 
-        with open(file_path, "w", encoding="utf-8") as f:
+        with open(file_path, "w") as f:
             json.dump(snapshot_data, f, indent=4)
-
-        print(f"\nSnapshot saved: {file_path}")
-
-        print(f"========== {env_name} SNAPSHOT COMPLETE ==========\n")
 
         return {
             "success": True,
-            "env": env_name,
-            "summary": summary,
-            "file": file_path
-        }
-
-    except ClientError as e:
-
-        print("AWS Client Error")
-        print(str(e))
-
-        return {
-            "success": False,
-            "env": env_name,
-            "error": str(e)
+            "env": env,
+            "summary": summary
         }
 
     except Exception as e:
 
-        print("General Error")
-        print(str(e))
-
         return {
             "success": False,
-            "env": env_name,
+            "env": env,
             "error": str(e)
         }
