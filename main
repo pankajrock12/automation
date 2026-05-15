@@ -1,0 +1,98 @@
+import streamlit as st
+import os
+import webbrowser
+
+from snapshot_manager import save_snapshot
+from compare_snapshots import compare_all
+from report_generator import generate_html_report
+
+st.set_page_config(layout="wide")
+
+st.title("DynamoDB Environment Validation Tool")
+
+st.divider()
+
+st.header("1. Capture DEV / TEST / MO")
+
+if st.button("Capture NONPROD Snapshots"):
+
+    try:
+
+        save_snapshot("DEV")
+        save_snapshot("TEST")
+        save_snapshot("MO")
+
+        st.success("NONPROD snapshots captured successfully")
+
+        st.write("Captured Environments")
+        st.write("✅ DEV")
+        st.write("✅ TEST")
+        st.write("✅ MO")
+
+    except Exception as e:
+        st.error(str(e))
+
+st.divider()
+
+st.header("2. Capture PROD")
+
+if st.button("Capture PROD Snapshot"):
+
+    try:
+
+        save_snapshot("PROD")
+
+        st.success("PROD snapshot captured successfully")
+
+        st.write("Captured Environments")
+        st.write("✅ PROD")
+
+    except Exception as e:
+        st.error(str(e))
+
+st.divider()
+
+st.header("3. Run Validation")
+
+if st.button("Run Validation"):
+
+    try:
+
+        results = compare_all()
+
+        report_path = generate_html_report(results)
+
+        st.success("Validation completed successfully")
+
+        for result in results:
+
+            st.subheader(
+                f"{result['baseEnv']} vs {result['compareEnv']}"
+            )
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric("Matched", result["matched"])
+            col2.metric("Different", result["different"])
+            col3.metric("Missing", result["missing"])
+
+        st.markdown(
+            f"""
+            <a href="file:///{os.path.abspath(report_path)}" target="_blank">
+                <button style="
+                    background-color:green;
+                    color:white;
+                    padding:10px;
+                    border:none;
+                    border-radius:5px;
+                    cursor:pointer;
+                ">
+                    Open Report
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
+
+    except Exception as e:
+        st.error(str(e))
