@@ -12,10 +12,22 @@ def load_snapshot(env):
     )
 
     if not os.path.exists(file_path):
-        return {}
+        return []
 
     with open(file_path, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    all_items = []
+
+    for table_name, items in data.items():
+
+        if isinstance(items, list):
+
+            for item in items:
+                item["_table"] = table_name
+                all_items.append(item)
+
+    return all_items
 
 
 def extract_lookup_code(item):
@@ -62,7 +74,8 @@ def compare_table(base_items, compare_items):
 
             details.append({
                 "lookupCode": lookup_code,
-                "status": "MISSING"
+                "status": "MISSING",
+                "table": base_item.get("_table")
             })
 
             continue
@@ -87,7 +100,8 @@ def compare_table(base_items, compare_items):
 
             details.append({
                 "lookupCode": lookup_code,
-                "status": "DIFFERENT"
+                "status": "DIFFERENT",
+                "table": base_item.get("_table")
             })
 
     return {
@@ -100,54 +114,30 @@ def compare_table(base_items, compare_items):
 
 def compare_two_env(base_env, compare_env):
 
-    base_snapshot = load_snapshot(base_env)
+    base_items = load_snapshot(base_env)
 
-    compare_snapshot = load_snapshot(compare_env)
+    compare_items = load_snapshot(compare_env)
 
-    total_matched = 0
-    total_different = 0
-    total_missing = 0
+    result = compare_table(
+        base_items,
+        compare_items
+    )
 
-    final_details = []
+    result["base_env"] = base_env
+    result["compare_env"] = compare_env
 
-    for table_name, base_items in base_snapshot.items():
-
-        compare_items = compare_snapshot.get(
-            table_name,
-            []
-        )
-
-        result = compare_table(
-            base_items,
-            compare_items
-        )
-
-        total_matched += result["matched"]
-        total_different += result["different"]
-        total_missing += result["missing"]
-
-        for detail in result["details"]:
-
-            detail["table"] = table_name
-
-            final_details.append(detail)
-
-    return {
-        "base_env": base_env,
-        "compare_env": compare_env,
-        "matched": total_matched,
-        "different": total_different,
-        "missing": total_missing,
-        "details": final_details
-    }
+    return result
 
 
 def compare_all():
 
     comparisons = [
         ("DEV", "TEST"),
+        ("TEST", "MO"),
+        ("MO", "PROD"),
         ("DEV", "MO"),
-        ("DEV", "PROD")
+        ("DEV", "PROD"),
+        ("TEST", "PROD")
     ]
 
     final_result = []
