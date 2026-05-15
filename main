@@ -1,18 +1,16 @@
 import streamlit as st
+import json
 import os
 
 from snapshot_manager import save_snapshot
 from compare_snapshots import compare_all
 from report_generator import generate_html_report
 
-st.set_page_config(
-    page_title="DynamoDB Environment Validation Tool",
-    layout="wide"
-)
+st.set_page_config(layout="wide")
 
 st.title("DynamoDB Environment Validation Tool")
 
-st.markdown("---")
+SNAPSHOT_FOLDER = "snapshots"
 
 # =========================
 # CAPTURE NONPROD
@@ -24,17 +22,31 @@ if st.button("Capture NONPROD Snapshots"):
 
     try:
 
-        save_snapshot("DEV")
-        save_snapshot("TEST")
-        save_snapshot("MO")
+        dev_data = save_snapshot("DEV")
+        test_data = save_snapshot("TEST")
+        mo_data = save_snapshot("MO")
 
         st.success("NONPROD snapshots captured successfully")
+
+        st.subheader("Snapshot Summary")
+
+        for env_name, data in {
+            "DEV": dev_data,
+            "TEST": test_data,
+            "MO": mo_data
+        }.items():
+
+            st.markdown(f"### {env_name}")
+
+            for table_name, items in data.items():
+
+                st.write(
+                    f"Table: {table_name} | Records Captured: {len(items)}"
+                )
 
     except Exception as e:
 
         st.error(str(e))
-
-st.markdown("---")
 
 # =========================
 # CAPTURE PROD
@@ -46,15 +58,21 @@ if st.button("Capture PROD Snapshot"):
 
     try:
 
-        save_snapshot("PROD")
+        prod_data = save_snapshot("PROD")
 
         st.success("PROD snapshot captured successfully")
+
+        st.subheader("PROD Snapshot Summary")
+
+        for table_name, items in prod_data.items():
+
+            st.write(
+                f"Table: {table_name} | Records Captured: {len(items)}"
+            )
 
     except Exception as e:
 
         st.error(str(e))
-
-st.markdown("---")
 
 # =========================
 # RUN VALIDATION
@@ -72,7 +90,27 @@ if st.button("Run Validation"):
 
         st.success("Validation completed successfully")
 
+        total_matched = 0
+        total_different = 0
+        total_missing = 0
+
         for result in results:
+
+            total_matched += result["matched"]
+            total_different += result["different"]
+            total_missing += result["missing"]
+
+        st.subheader("Summary")
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Matched", total_matched)
+        col2.metric("Different", total_different)
+        col3.metric("Missing", total_missing)
+
+        for result in results:
+
+            st.markdown("---")
 
             st.subheader(
                 f"{result['baseEnv']} vs {result['compareEnv']}"
@@ -84,9 +122,13 @@ if st.button("Run Validation"):
             col2.metric("Different", result["different"])
             col3.metric("Missing", result["missing"])
 
-        # =========================
-        # DOWNLOAD REPORT BUTTON
-        # =========================
+            if len(result["details"]) > 0:
+
+                st.dataframe(result["details"])
+
+            else:
+
+                st.warning("No comparison differences found")
 
         with open(report_path, "r", encoding="utf-8") as file:
 
@@ -97,19 +139,6 @@ if st.button("Run Validation"):
             data=html_content,
             file_name="final_validation_report.html",
             mime="text/html"
-        )
-
-        # =========================
-        # SHOW REPORT INSIDE SCREEN
-        # =========================
-
-        st.markdown("---")
-        st.subheader("Validation Report Preview")
-
-        st.components.v1.html(
-            html_content,
-            height=800,
-            scrolling=True
         )
 
     except Exception as e:
