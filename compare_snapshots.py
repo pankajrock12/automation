@@ -18,6 +18,20 @@ def load_snapshot(env):
         return json.load(f)
 
 
+def extract_lookup_code(item):
+
+    lookup_code = item.get("lookupCode")
+
+    if isinstance(lookup_code, dict):
+
+        if "S" in lookup_code:
+            return lookup_code["S"]
+
+        return str(lookup_code)
+
+    return str(lookup_code)
+
+
 def compare_table(base_items, compare_items):
 
     matched = 0
@@ -30,14 +44,13 @@ def compare_table(base_items, compare_items):
 
     for item in compare_items:
 
-        lookup_code = item.get("lookupCode")
+        lookup_code = extract_lookup_code(item)
 
-        if lookup_code:
-            compare_lookup[lookup_code] = item
+        compare_lookup[lookup_code] = item
 
     for base_item in base_items:
 
-        lookup_code = base_item.get("lookupCode")
+        lookup_code = extract_lookup_code(base_item)
 
         compare_item = compare_lookup.get(lookup_code)
 
@@ -91,7 +104,10 @@ def compare_two_env(base_env, compare_env):
 
         compare_items = compare_snapshot.get(table_name, [])
 
-        result = compare_table(base_items, compare_items)
+        result = compare_table(
+            base_items,
+            compare_items
+        )
 
         total_matched += result["matched"]
         total_different += result["different"]
@@ -115,18 +131,15 @@ def compare_two_env(base_env, compare_env):
 
 def compare_all():
 
-    final_result = []
-
     comparisons = [
         ("DEV", "TEST"),
         ("DEV", "MO"),
         ("DEV", "PROD")
     ]
 
-    for comparison in comparisons:
+    final_result = []
 
-        base_env = comparison[0]
-        compare_env = comparison[1]
+    for base_env, compare_env in comparisons:
 
         result = compare_two_env(
             base_env,
