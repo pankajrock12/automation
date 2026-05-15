@@ -1,16 +1,22 @@
 import streamlit as st
 import os
-import webbrowser
 
 from snapshot_manager import save_snapshot
 from compare_snapshots import compare_all
 from report_generator import generate_html_report
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="DynamoDB Environment Validation Tool",
+    layout="wide"
+)
 
 st.title("DynamoDB Environment Validation Tool")
 
-st.divider()
+st.markdown("---")
+
+# =========================
+# CAPTURE NONPROD
+# =========================
 
 st.header("1. Capture DEV / TEST / MO")
 
@@ -24,15 +30,15 @@ if st.button("Capture NONPROD Snapshots"):
 
         st.success("NONPROD snapshots captured successfully")
 
-        st.write("Captured Environments")
-        st.write("✅ DEV")
-        st.write("✅ TEST")
-        st.write("✅ MO")
-
     except Exception as e:
+
         st.error(str(e))
 
-st.divider()
+st.markdown("---")
+
+# =========================
+# CAPTURE PROD
+# =========================
 
 st.header("2. Capture PROD")
 
@@ -44,13 +50,15 @@ if st.button("Capture PROD Snapshot"):
 
         st.success("PROD snapshot captured successfully")
 
-        st.write("Captured Environments")
-        st.write("✅ PROD")
-
     except Exception as e:
+
         st.error(str(e))
 
-st.divider()
+st.markdown("---")
+
+# =========================
+# RUN VALIDATION
+# =========================
 
 st.header("3. Run Validation")
 
@@ -76,23 +84,34 @@ if st.button("Run Validation"):
             col2.metric("Different", result["different"])
             col3.metric("Missing", result["missing"])
 
-        st.markdown(
-            f"""
-            <a href="file:///{os.path.abspath(report_path)}" target="_blank">
-                <button style="
-                    background-color:green;
-                    color:white;
-                    padding:10px;
-                    border:none;
-                    border-radius:5px;
-                    cursor:pointer;
-                ">
-                    Open Report
-                </button>
-            </a>
-            """,
-            unsafe_allow_html=True
+        # =========================
+        # DOWNLOAD REPORT BUTTON
+        # =========================
+
+        with open(report_path, "r", encoding="utf-8") as file:
+
+            html_content = file.read()
+
+        st.download_button(
+            label="Download Validation Report",
+            data=html_content,
+            file_name="final_validation_report.html",
+            mime="text/html"
+        )
+
+        # =========================
+        # SHOW REPORT INSIDE SCREEN
+        # =========================
+
+        st.markdown("---")
+        st.subheader("Validation Report Preview")
+
+        st.components.v1.html(
+            html_content,
+            height=800,
+            scrolling=True
         )
 
     except Exception as e:
+
         st.error(str(e))
