@@ -46,29 +46,30 @@ def save_snapshot(environment):
     env_config = ENVIRONMENTS[environment]
 
     credentials = env_config["credentials"]
+
     tables = env_config["tables"]
 
     client = create_client(credentials)
 
     snapshot_data = {}
 
-    for table in tables:
+    for table_name in tables:
 
         try:
 
-            items = scan_table(client, table)
+            items = scan_table(client, table_name)
 
-            snapshot_data[table] = items
+            snapshot_data[table_name] = items
 
-            print(f"{environment} -> {table} -> {len(items)} items captured")
+            print(
+                f"{environment} | {table_name} | {len(items)} items"
+            )
 
         except Exception as e:
 
-            print(f"ERROR in {environment} {table}")
+            snapshot_data[table_name] = []
 
             print(str(e))
-
-            snapshot_data[table] = []
 
     output_file = f"{SNAPSHOT_FOLDER}/{environment}.json"
 
