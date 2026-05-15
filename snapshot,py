@@ -1,0 +1,158 @@
+import json
+import os
+
+SNAPSHOT_FOLDER = "snapshots"
+
+
+def load_snapshot(environment):
+    file_path = f"{SNAPSHOT_FOLDER}/{environment}.json"
+
+    if not os.path.exists(file_path):
+        return {}
+
+    with open(file_path, "r") as file:
+        return json.load(file)
+
+
+def get_datatype(value):
+
+    if isinstance(value, dict):
+
+        if "S" in value:
+            return "S"
+
+        if "N" in value:
+            return "N"
+
+        if "BOOL" in value:
+            return "BOOL"
+
+        if "L" in value:
+            return "L"
+
+        if "M" in value:
+            return "M"
+
+    return type(value).__name__
+
+
+def build_lookup_map(snapshot):
+
+    lookup_map = {}
+
+    for table_name, items in snapshot.items():
+
+        table_map = {}
+
+        for item in items:
+
+            lookup_code = None
+
+            if "lookupCode" in item:
+                lookup_code = item["lookupCode"].get("S")
+
+            if lookup_code:
+                table_map[lookup_code] = item
+
+        lookup_map[table_name] = table_map
+
+    return lookup_map
+
+
+def compare_two_env(base_env, compare_env):
+
+    base_snapshot = load_snapshot(base_env)
+    compare_snapshot = load_snapshot(compare_env)
+
+    base_map = build_lookup_map(base_snapshot)
+    compare_map = build_lookup_map(compare_snapshot)
+
+    comparison_result = []
+
+    matched_count = 0
+    different_count = 0
+    missing_count = 0
+
+    for table_name in base_map.keys():
+
+        base_items = base_map.get(table_name, {})
+        compare_items = compare_map.get(table_name, {})
+
+        for lookup_code, base_item in base_items.items():
+
+            compare_item = compare_items.get(lookup_code)
+
+            if not compare_item:
+
+                missing_count += 1
+
+                comparison_result.append({
+                    "table": table_name,
+                    "lookupCode": lookup_code,
+                    "field": "ALL",
+                    "baseDatatype": "EXISTS",
+                    "compareDatatype": "MISSING",
+                    "status": "MISSING_IN_COMPARE"
+                })
+
+                continue
+
+            fields_to_compare = [
+                "lookupCode",
+                "lookupStatus",
+                "lookups"
+            ]
+
+            for field in fields_to_compare:
+
+                base_value = base_item.get(field)
+                compare_value = compare_item.get(field)
+
+                base_type = get_datatype(base_value)
+                compare_type = get_datatype(compare_value)
+
+                if base_type == compare_type:
+
+                    status = "MATCHED"
+                    matched_count += 1
+
+                else:
+
+                    status = "DIFFERENT"
+                    different_count += 1
+
+                comparison_result.append({
+                    "table": table_name,
+                    "lookupCode": lookup_code,
+                    "field": field,
+                    "baseDatatype": base_type,
+                    "compareDatatype": compare_type,
+                    "status": status
+                })
+
+    return {
+        "baseEnv": base_env,
+        "compareEnv": compare_env,
+        "matched": matched_count,
+        "different": different_count,
+        "missing": missing_count,
+        "details": comparison_result
+    }
+
+
+def compare_all():
+
+    final_result = []
+
+    comparisons = [
+        ("DEV", "TEST"),
+        ("DEV", "MO"),
+        ("DEV", "PROD")
+    ]
+
+    for base_env, compare_env in comparisons:
+
+        result = compare_two_env(base_env, compare_env)
+        final_result.append(result)
+
+    return final_result
