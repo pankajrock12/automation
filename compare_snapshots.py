@@ -115,17 +115,23 @@ def compare_two_env(base_env, compare_env):
 
 def compare_all():
 
+    final_result = []
+
     comparisons = [
         ("DEV", "TEST"),
         ("DEV", "MO"),
         ("DEV", "PROD")
     ]
 
-    final_result = []
+    for comparison in comparisons:
 
-    for base_env, compare_env in comparisons:
+        base_env = comparison[0]
+        compare_env = comparison[1]
 
-        result = compare_two_env(base_env, compare_env)
+        result = compare_two_env(
+            base_env,
+            compare_env
+        )
 
         final_result.append(result)
 
