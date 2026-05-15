@@ -5,6 +5,7 @@ SNAPSHOT_FOLDER = "snapshots"
 
 
 def load_snapshot(environment):
+
     file_path = f"{SNAPSHOT_FOLDER}/{environment}.json"
 
     if not os.path.exists(file_path):
@@ -42,19 +43,21 @@ def build_lookup_map(snapshot):
 
     for table_name, items in snapshot.items():
 
-        table_map = {}
+        table_lookup = {}
 
         for item in items:
 
             lookup_code = None
 
             if "lookupCode" in item:
+
                 lookup_code = item["lookupCode"].get("S")
 
             if lookup_code:
-                table_map[lookup_code] = item
 
-        lookup_map[table_name] = table_map
+                table_lookup[lookup_code] = item
+
+        lookup_map[table_name] = table_lookup
 
     return lookup_map
 
@@ -153,6 +156,7 @@ def compare_all():
     for base_env, compare_env in comparisons:
 
         result = compare_two_env(base_env, compare_env)
+
         final_result.append(result)
 
     return final_result
