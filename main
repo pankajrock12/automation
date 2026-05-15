@@ -1,80 +1,107 @@
 import streamlit as st
-
 from snapshot_manager import save_snapshot
 from compare_snapshots import compare_all
+from report_generator import generate_html_report
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="DynamoDB Environment Validation Tool",
+    layout="wide"
+)
 
 st.title("DynamoDB Environment Validation Tool")
 
-NONPROD_ENVS = ["DEV", "TEST", "MO"]
-
+# =========================================================
+# 1. CAPTURE NONPROD
+# =========================================================
 
 st.header("1. Capture DEV / TEST / MO")
 
 if st.button("Capture NONPROD Snapshots"):
 
-    snapshot_results = []
+    with st.spinner("Capturing NONPROD snapshots..."):
 
-    for env in NONPROD_ENVS:
-
-        result = save_snapshot(env)
-
-        snapshot_results.append(result)
+        nonprod_result = save_snapshot(
+            environments=["DEV", "TEST", "MO"]
+        )
 
     st.success("NONPROD snapshots captured successfully")
 
     st.subheader("Snapshot Summary")
 
-    for result in snapshot_results:
+    for env_name, tables in nonprod_result.items():
 
-        st.markdown(f"## {result['env']}")
+        st.subheader(env_name)
 
-        if result["success"]:
+        for table_name, items in tables.items():
 
-            for item in result["summary"]:
+            st.write(
+                f"Table: {table_name} | "
+                f"Records Captured: {len(items)}"
+            )
 
-                st.write(
-                    f"Table: {item['table']} | "
-                    f"Records Captured: {item['records']}"
-                )
-
-        else:
-
-            st.error(result["error"])
-
+# =========================================================
+# 2. CAPTURE PROD
+# =========================================================
 
 st.header("2. Capture PROD")
 
 if st.button("Capture PROD Snapshot"):
 
-    result = save_snapshot("PROD")
+    with st.spinner("Capturing PROD snapshot..."):
 
-    if result["success"]:
+        prod_result = save_snapshot(
+            environments=["PROD"]
+        )
 
-        st.success("PROD snapshot captured successfully")
+    st.success("PROD snapshot captured successfully")
 
-        st.subheader("PROD Snapshot Summary")
+    st.subheader("PROD Snapshot Summary")
 
-        for item in result["summary"]:
+    for env_name, tables in prod_result.items():
+
+        st.subheader(env_name)
+
+        for table_name, items in tables.items():
 
             st.write(
-                f"Table: {item['table']} | "
-                f"Records Captured: {item['records']}"
+                f"Table: {table_name} | "
+                f"Records Captured: {len(items)}"
             )
 
-    else:
-
-        st.error(result["error"])
-
+# =========================================================
+# 3. RUN VALIDATION
+# =========================================================
 
 st.header("3. Run Validation")
 
 if st.button("Run Validation"):
 
-    validation_results = compare_all()
+    with st.spinner("Running validation..."):
+
+        validation_results = compare_all()
 
     st.success("Validation completed successfully")
+
+    # =====================================================
+    # GENERATE HTML REPORT
+    # =====================================================
+
+    report_path = generate_html_report(
+        validation_results
+    )
+
+    with open(report_path, "rb") as file:
+
+        st.download_button(
+            label="Download Validation Report",
+            data=file,
+            file_name="validation_report.html",
+            mime="text/html"
+        )
+
+    # =====================================================
+    # SUMMARY
+    # =====================================================
 
     total_matched = 0
     total_different = 0
@@ -90,25 +117,61 @@ if st.button("Run Validation"):
 
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Matched", total_matched)
-    col2.metric("Different", total_different)
-    col3.metric("Missing", total_missing)
+    with col1:
+        st.metric(
+            "Matched",
+            total_matched
+        )
+
+    with col2:
+        st.metric(
+            "Different",
+            total_different
+        )
+
+    with col3:
+        st.metric(
+            "Missing",
+            total_missing
+        )
+
+    # =====================================================
+    # DETAILED COMPARISON
+    # =====================================================
 
     for result in validation_results:
 
         st.header(
-            f"{result['base_env']} vs {result['compare_env']}"
+            f"{result['base_env']} vs "
+            f"{result['compare_env']}"
         )
 
-        c1, c2, c3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
-        c1.metric("Matched", result["matched"])
-        c2.metric("Different", result["different"])
-        c3.metric("Missing", result["missing"])
+        with col1:
+            st.metric(
+                "Matched",
+                result["matched"]
+            )
 
-        if len(result["details"]) > 0:
+        with col2:
+            st.metric(
+                "Different",
+                result["different"]
+            )
 
-            st.dataframe(result["details"])
+        with col3:
+            st.metric(
+                "Missing",
+                result["missing"]
+            )
+
+        if result["details"]:
+
+            st.dataframe(
+                result["details"],
+                use_container_width=True
+            )
 
         else:
 
