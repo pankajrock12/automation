@@ -1,71 +1,91 @@
-import boto3
 import json
 import os
 
-from config import TABLES, AWS_CONFIGS
+import boto3
+
+from config import AWS_CONFIGS, TABLES
+
 
 SNAPSHOT_DIR = "snapshots"
 
-os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+
+def convert_dynamodb_item(item):
+
+    cleaned = {}
+
+    for key, value in item.items():
+
+        if "S" in value:
+            cleaned[key] = value["S"]
+
+        elif "N" in value:
+            cleaned[key] = value["N"]
+
+        else:
+            cleaned[key] = str(value)
+
+    return cleaned
 
 
-def scan_table(table_name, aws_config):
+def save_snapshot(environments):
 
-    dynamodb = boto3.resource(
-        "dynamodb",
-        region_name=aws_config["region"],
-        aws_access_key_id=aws_config["access_key"],
-        aws_secret_access_key=aws_config["secret_key"]
-    )
+    if not os.path.exists(SNAPSHOT_DIR):
+        os.makedirs(SNAPSHOT_DIR)
 
-    table = dynamodb.Table(table_name)
+    final_result = {}
 
-    response = table.scan()
+    for env in environments:
 
-    items = response.get("Items", [])
+        config = AWS_CONFIGS[env]
 
-    return items
+        dynamodb = boto3.client(
+            "dynamodb",
+            aws_access_key_id=config["aws_access_key_id"],
+            aws_secret_access_key=config["aws_secret_access_key"],
+            region_name=config["region"]
+        )
 
+        env_data = {}
 
-def save_snapshot(env):
+        for table in TABLES:
 
-    try:
+            response = dynamodb.scan(
+                TableName=table
+            )
 
-        snapshot_data = {}
+            items = response.get("Items", [])
 
-        summary = []
+            cleaned_items = []
 
-        aws_config = AWS_CONFIGS[env]
+            for item in items:
 
-        for table_name in TABLES[env]:
+                cleaned_item = convert_dynamodb_item(item)
 
-            items = scan_table(table_name, aws_config)
+                cleaned_items.append(cleaned_item)
 
-            snapshot_data[table_name] = items
+            env_data[table] = cleaned_items
 
-            summary.append({
-                "table": table_name,
-                "records": len(items)
-            })
+            print(
+                f"{env} | {table} | Records: {len(cleaned_items)}"
+            )
 
-        file_path = os.path.join(
+        snapshot_path = os.path.join(
             SNAPSHOT_DIR,
             f"{env.lower()}_snapshot.json"
         )
 
-        with open(file_path, "w") as f:
-            json.dump(snapshot_data, f, indent=4)
+        with open(snapshot_path, "w") as f:
 
-        return {
-            "success": True,
-            "env": env,
-            "summary": summary
-        }
+            json.dump(
+                env_data,
+                f,
+                indent=4
+            )
 
-    except Exception as e:
+        final_result[env] = env_data
 
-        return {
-            "success": False,
-            "env": env,
-            "error": str(e)
-        }
+        print(
+            f"Snapshot saved: {snapshot_path}"
+        )
+
+    return final_result
