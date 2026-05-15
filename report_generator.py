@@ -3,10 +3,6 @@ import os
 
 def generate_html_report(results):
 
-    os.makedirs("reports", exist_ok=True)
-
-    report_path = "reports/final_validation_report.html"
-
     html = """
     <html>
     <head>
@@ -14,76 +10,45 @@ def generate_html_report(results):
 
         <style>
 
-            body{
+            body {
                 font-family: Arial;
-                padding:20px;
+                padding: 20px;
             }
 
-            h1{
-                color:#1f4e78;
+            h1 {
+                color: #1f77b4;
             }
 
-            h2{
-                margin-top:40px;
-                color:#2f5597;
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin-bottom: 40px;
             }
 
-            h3{
-                margin-top:30px;
+            th, td {
+                border: 1px solid #ccc;
+                padding: 10px;
+                text-align: left;
             }
 
-            table{
-                width:100%;
-                border-collapse:collapse;
-                margin-top:10px;
-                margin-bottom:30px;
+            th {
+                background-color: #333;
+                color: white;
             }
 
-            th{
-                background-color:#1f1f1f;
-                color:white;
-                padding:10px;
-                border:1px solid #d9d9d9;
+            .matched {
+                color: green;
+                font-weight: bold;
             }
 
-            td{
-                padding:8px;
-                border:1px solid #d9d9d9;
+            .different {
+                color: orange;
+                font-weight: bold;
             }
 
-            .matched{
-                background-color:#d9ead3;
-            }
-
-            .different{
-                background-color:#f4cccc;
-            }
-
-            .missing{
-                background-color:#fff2cc;
-            }
-
-            .summary-card{
-                width:30%;
-                display:inline-block;
-                margin-right:10px;
-                padding:20px;
-                color:white;
-                font-size:20px;
-                font-weight:bold;
-                border-radius:8px;
-            }
-
-            .green{
-                background-color:#2e7d32;
-            }
-
-            .red{
-                background-color:#c62828;
-            }
-
-            .orange{
-                background-color:#ef6c00;
+            .missing {
+                color: red;
+                font-weight: bold;
             }
 
         </style>
@@ -92,7 +57,7 @@ def generate_html_report(results):
 
     <body>
 
-    <h1>DynamoDB Environment Validation Report</h1>
+    <h1>DynamoDB Validation Report</h1>
     """
 
     total_matched = 0
@@ -101,39 +66,35 @@ def generate_html_report(results):
 
     for result in results:
 
-        total_matched += result.get("matched", 0)
-        total_different += result.get("different", 0)
-        total_missing += result.get("missing", 0)
+        total_matched += result["matched"]
+        total_different += result["different"]
+        total_missing += result["missing"]
 
     html += f"""
-
     <h2>Summary</h2>
 
-    <div class="summary-card green">
-        Matched<br><br>
-        {total_matched}
-    </div>
+    <table>
 
-    <div class="summary-card red">
-        Different<br><br>
-        {total_different}
-    </div>
+        <tr>
+            <th>Matched</th>
+            <th>Different</th>
+            <th>Missing</th>
+        </tr>
 
-    <div class="summary-card orange">
-        Missing<br><br>
-        {total_missing}
-    </div>
+        <tr>
+            <td class='matched'>{total_matched}</td>
+            <td class='different'>{total_different}</td>
+            <td class='missing'>{total_missing}</td>
+        </tr>
 
+    </table>
     """
 
     for result in results:
 
         html += f"""
-
         <h2>
-            {result.get("baseEnv", "")}
-            vs
-            {result.get("compareEnv", "")}
+            {result['base_env']} vs {result['compare_env']}
         </h2>
 
         <table>
@@ -145,95 +106,53 @@ def generate_html_report(results):
             </tr>
 
             <tr>
-                <td class="matched">
-                    {result.get("matched", 0)}
-                </td>
-
-                <td class="different">
-                    {result.get("different", 0)}
-                </td>
-
-                <td class="missing">
-                    {result.get("missing", 0)}
-                </td>
+                <td class='matched'>{result['matched']}</td>
+                <td class='different'>{result['different']}</td>
+                <td class='missing'>{result['missing']}</td>
             </tr>
 
         </table>
-
         """
 
-        html += """
+        if result["details"]:
 
-        <table>
+            html += """
+            <table>
 
-            <tr>
-                <th>Table</th>
-                <th>LookupCode</th>
-                <th>Field</th>
-                <th>Base Datatype</th>
-                <th>Compare Datatype</th>
-                <th>Status</th>
-            </tr>
-
-        """
-
-        for detail in result.get("details", []):
-
-            status = detail.get("status", "")
-
-            css_class = ""
-
-            if status == "MATCHED":
-                css_class = "matched"
-
-            elif status == "DIFFERENT":
-                css_class = "different"
-
-            else:
-                css_class = "missing"
-
-            html += f"""
-
-            <tr class="{css_class}">
-
-                <td>
-                    {detail.get("table", "UNKNOWN_TABLE")}
-                </td>
-
-                <td>
-                    {detail.get("lookupCode", "UNKNOWN_LOOKUP")}
-                </td>
-
-                <td>
-                    {detail.get("field", "")}
-                </td>
-
-                <td>
-                    {detail.get("baseDatatype", "")}
-                </td>
-
-                <td>
-                    {detail.get("compareDatatype", "")}
-                </td>
-
-                <td>
-                    {detail.get("status", "")}
-                </td>
-
-            </tr>
-
+                <tr>
+                    <th>LookupCode</th>
+                    <th>Status</th>
+                    <th>Table</th>
+                </tr>
             """
 
-        html += "</table>"
+            for item in result["details"]:
+
+                html += f"""
+                <tr>
+                    <td>{item['lookupCode']}</td>
+                    <td>{item['status']}</td>
+                    <td>{item['table']}</td>
+                </tr>
+                """
+
+            html += "</table>"
+
+        else:
+
+            html += "<p>No differences found</p>"
 
     html += """
-
     </body>
     </html>
-
     """
 
-    with open(report_path, "w", encoding="utf-8") as file:
-        file.write(html)
+    if not os.path.exists("reports"):
+        os.makedirs("reports")
+
+    report_path = "reports/validation_report.html"
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
     return report_path
