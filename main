@@ -1,178 +1,85 @@
 import streamlit as st
+
 from snapshot_manager import save_snapshot
-from compare_snapshots import compare_all
-from report_generator import generate_html_report
+from compare_snapshots import compare_snapshots
+
 
 st.set_page_config(
-    page_title="DynamoDB Environment Validation Tool",
+    page_title="DynamoDB Environment Validator",
     layout="wide"
 )
 
-st.title("DynamoDB Environment Validation Tool")
+st.title("DynamoDB Environment Validator")
 
-# =========================================================
-# 1. CAPTURE NONPROD
-# =========================================================
+
+NONPROD_CREDENTIALS = {
+    "aws_access_key_id": "PASTE_NONPROD_ACCESS_KEY",
+    "aws_secret_access_key": "PASTE_NONPROD_SECRET_KEY",
+    "aws_session_token": "PASTE_NONPROD_SESSION_TOKEN",
+    "region": "us-east-1"
+}
+
+PROD_CREDENTIALS = {
+    "aws_access_key_id": "PASTE_PROD_ACCESS_KEY",
+    "aws_secret_access_key": "PASTE_PROD_SECRET_KEY",
+    "aws_session_token": "PASTE_PROD_SESSION_TOKEN",
+    "region": "us-east-1"
+}
+
 
 st.header("1. Capture DEV / TEST / MO")
 
 if st.button("Capture NONPROD Snapshots"):
 
-    with st.spinner("Capturing NONPROD snapshots..."):
+    credentials_map = {
+        "DEV": NONPROD_CREDENTIALS,
+        "TEST": NONPROD_CREDENTIALS,
+        "MO": NONPROD_CREDENTIALS
+    }
 
-        nonprod_result = save_snapshot(
-            environments=["DEV", "TEST", "MO"]
-        )
+    result = save_snapshot(
+        environments=["DEV", "TEST", "MO"],
+        credentials_map=credentials_map
+    )
 
-    st.success("NONPROD snapshots captured successfully")
+    st.success(result)
 
-    st.subheader("Snapshot Summary")
-
-    for env_name, tables in nonprod_result.items():
-
-        st.subheader(env_name)
-
-        for table_name, items in tables.items():
-
-            st.write(
-                f"Table: {table_name} | "
-                f"Records Captured: {len(items)}"
-            )
-
-# =========================================================
-# 2. CAPTURE PROD
-# =========================================================
 
 st.header("2. Capture PROD")
 
 if st.button("Capture PROD Snapshot"):
 
-    with st.spinner("Capturing PROD snapshot..."):
+    credentials_map = {
+        "PROD": PROD_CREDENTIALS
+    }
 
-        prod_result = save_snapshot(
-            environments=["PROD"]
-        )
+    result = save_snapshot(
+        environments=["PROD"],
+        credentials_map=credentials_map
+    )
 
-    st.success("PROD snapshot captured successfully")
+    st.success(result)
 
-    st.subheader("PROD Snapshot Summary")
-
-    for env_name, tables in prod_result.items():
-
-        st.subheader(env_name)
-
-        for table_name, items in tables.items():
-
-            st.write(
-                f"Table: {table_name} | "
-                f"Records Captured: {len(items)}"
-            )
-
-# =========================================================
-# 3. RUN VALIDATION
-# =========================================================
 
 st.header("3. Run Validation")
 
-if st.button("Run Validation"):
+if st.button("Generate Validation Report"):
 
-    with st.spinner("Running validation..."):
+    report_path = compare_snapshots()
 
-        validation_results = compare_all()
+    st.success("Validation completed")
 
-    st.success("Validation completed successfully")
+    with open(report_path, "r", encoding="utf-8") as file:
+        html_content = file.read()
 
-    # =====================================================
-    # GENERATE HTML REPORT
-    # =====================================================
-
-    report_path = generate_html_report(
-        validation_results
+    st.download_button(
+        label="Download Report",
+        data=html_content,
+        file_name="final_validation_report.html",
+        mime="text/html"
     )
 
-    with open(report_path, "rb") as file:
-
-        st.download_button(
-            label="Download Validation Report",
-            data=file,
-            file_name="validation_report.html",
-            mime="text/html"
-        )
-
-    # =====================================================
-    # SUMMARY
-    # =====================================================
-
-    total_matched = 0
-    total_different = 0
-    total_missing = 0
-
-    for result in validation_results:
-
-        total_matched += result["matched"]
-        total_different += result["different"]
-        total_missing += result["missing"]
-
-    st.header("Summary")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric(
-            "Matched",
-            total_matched
-        )
-
-    with col2:
-        st.metric(
-            "Different",
-            total_different
-        )
-
-    with col3:
-        st.metric(
-            "Missing",
-            total_missing
-        )
-
-    # =====================================================
-    # DETAILED COMPARISON
-    # =====================================================
-
-    for result in validation_results:
-
-        st.header(
-            f"{result['base_env']} vs "
-            f"{result['compare_env']}"
-        )
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric(
-                "Matched",
-                result["matched"]
-            )
-
-        with col2:
-            st.metric(
-                "Different",
-                result["different"]
-            )
-
-        with col3:
-            st.metric(
-                "Missing",
-                result["missing"]
-            )
-
-        if result["details"]:
-
-            st.dataframe(
-                result["details"],
-                use_container_width=True
-            )
-
-        else:
-
-            st.info("No differences found")
+    st.markdown(
+        f'<a href="file:///{report_path}" target="_blank">Open Report In New Tab</a>',
+        unsafe_allow_html=True
+    )
