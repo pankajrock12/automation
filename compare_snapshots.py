@@ -1,154 +1,137 @@
 import json
 import os
-
-SNAPSHOT_DIR = "snapshots"
+from datetime import datetime
 
 
 def load_snapshot(env):
+    path = f"snapshots/{env.lower()}_snapshot.json"
 
-    file_path = os.path.join(
-        SNAPSHOT_DIR,
-        f"{env.lower()}_snapshot.json"
+    if not os.path.exists(path):
+        return {}
+
+    with open(path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def compare_snapshots():
+
+    dev_data = load_snapshot("dev")
+    test_data = load_snapshot("test")
+    mo_data = load_snapshot("mo")
+    prod_data = load_snapshot("prod")
+
+    report_lines = []
+
+    report_lines.append("""
+    <html>
+    <head>
+        <title>DynamoDB Validation Report</title>
+        <style>
+            body {
+                font-family: Arial;
+                margin: 20px;
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin-top: 20px;
+            }
+
+            th, td {
+                border: 1px solid #ccc;
+                padding: 8px;
+                text-align: left;
+            }
+
+            th {
+                background-color: #f2f2f2;
+            }
+
+            .missing {
+                background-color: #ffcccc;
+            }
+
+            .matched {
+                background-color: #ccffcc;
+            }
+
+            .different {
+                background-color: #fff0b3;
+            }
+        </style>
+    </head>
+    <body>
+    """)
+
+    report_lines.append(
+        f"<h1>DynamoDB Validation Report</h1>"
     )
 
-    if not os.path.exists(file_path):
-        return []
+    report_lines.append(
+        f"<p>Generated: {datetime.now()}</p>"
+    )
 
-    with open(file_path, "r") as f:
-        data = json.load(f)
+    all_keys = set()
 
-    all_items = []
+    for dataset in [dev_data, test_data, mo_data, prod_data]:
+        all_keys.update(dataset.keys())
 
-    for table_name, items in data.items():
+    report_lines.append("""
+    <table>
+        <tr>
+            <th>Key</th>
+            <th>DEV</th>
+            <th>TEST</th>
+            <th>MO</th>
+            <th>PROD</th>
+            <th>Status</th>
+        </tr>
+    """)
 
-        if isinstance(items, list):
+    for key in sorted(all_keys):
 
-            for item in items:
-                item["_table"] = table_name
-                all_items.append(item)
+        dev_value = str(dev_data.get(key, "MISSING"))
+        test_value = str(test_data.get(key, "MISSING"))
+        mo_value = str(mo_data.get(key, "MISSING"))
+        prod_value = str(prod_data.get(key, "MISSING"))
 
-    return all_items
+        values = [dev_value, test_value, mo_value, prod_value]
 
+        if all(v == values[0] for v in values):
+            status = "MATCHED"
+            css = "matched"
 
-def extract_lookup_code(item):
-
-    lookup_code = item.get("lookupCode")
-
-    if isinstance(lookup_code, dict):
-
-        if "S" in lookup_code:
-            return lookup_code["S"]
-
-        return json.dumps(lookup_code)
-
-    return str(lookup_code)
-
-
-def compare_table(base_items, compare_items):
-
-    matched = 0
-    different = 0
-    missing = 0
-
-    details = []
-
-    compare_lookup = {}
-
-    for item in compare_items:
-
-        lookup_code = extract_lookup_code(item)
-
-        compare_lookup[str(lookup_code)] = item
-
-    for base_item in base_items:
-
-        lookup_code = extract_lookup_code(base_item)
-
-        compare_item = compare_lookup.get(
-            str(lookup_code)
-        )
-
-        if compare_item is None:
-
-            missing += 1
-
-            details.append({
-                "lookupCode": lookup_code,
-                "status": "MISSING",
-                "table": base_item.get("_table")
-            })
-
-            continue
-
-        base_json = json.dumps(
-            base_item,
-            sort_keys=True
-        )
-
-        compare_json = json.dumps(
-            compare_item,
-            sort_keys=True
-        )
-
-        if base_json == compare_json:
-
-            matched += 1
+        elif "MISSING" in values:
+            status = "MISSING"
+            css = "missing"
 
         else:
+            status = "DIFFERENT"
+            css = "different"
 
-            different += 1
+        report_lines.append(f"""
+        <tr class="{css}">
+            <td>{key}</td>
+            <td>{dev_value}</td>
+            <td>{test_value}</td>
+            <td>{mo_value}</td>
+            <td>{prod_value}</td>
+            <td>{status}</td>
+        </tr>
+        """)
 
-            details.append({
-                "lookupCode": lookup_code,
-                "status": "DIFFERENT",
-                "table": base_item.get("_table")
-            })
+    report_lines.append("""
+    </table>
+    </body>
+    </html>
+    """)
 
-    return {
-        "matched": matched,
-        "different": different,
-        "missing": missing,
-        "details": details
-    }
+    os.makedirs("reports", exist_ok=True)
 
+    report_path = "reports/final_validation_report.html"
 
-def compare_two_env(base_env, compare_env):
+    with open(report_path, "w", encoding="utf-8") as file:
+        file.write("\n".join(report_lines))
 
-    base_items = load_snapshot(base_env)
-
-    compare_items = load_snapshot(compare_env)
-
-    result = compare_table(
-        base_items,
-        compare_items
-    )
-
-    result["base_env"] = base_env
-    result["compare_env"] = compare_env
-
-    return result
-
-
-def compare_all():
-
-    comparisons = [
-        ("DEV", "TEST"),
-        ("TEST", "MO"),
-        ("MO", "PROD"),
-        ("DEV", "MO"),
-        ("DEV", "PROD"),
-        ("TEST", "PROD")
-    ]
-
-    final_result = []
-
-    for base_env, compare_env in comparisons:
-
-        result = compare_two_env(
-            base_env,
-            compare_env
-        )
-
-        final_result.append(result)
-
-    return final_result
+    return report_path
