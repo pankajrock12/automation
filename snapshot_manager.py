@@ -1,91 +1,111 @@
+import boto3
 import json
 import os
 
-import boto3
-
-from config import AWS_CONFIGS, TABLES
+from config import TABLES
 
 
-SNAPSHOT_DIR = "snapshots"
+def create_client(credentials):
+
+    return boto3.client(
+        "dynamodb",
+        region_name=credentials["region"],
+        aws_access_key_id=credentials["aws_access_key_id"],
+        aws_secret_access_key=credentials["aws_secret_access_key"],
+        aws_session_token=credentials["aws_session_token"],
+        verify=False
+    )
 
 
-def convert_dynamodb_item(item):
+def extract_structure(data):
 
-    cleaned = {}
+    if isinstance(data, dict):
 
-    for key, value in item.items():
+        structure = {}
 
-        if "S" in value:
-            cleaned[key] = value["S"]
+        for key, value in data.items():
 
-        elif "N" in value:
-            cleaned[key] = value["N"]
+            if key in [
+                "S",
+                "N",
+                "BOOL",
+                "M",
+                "L",
+                "NULL"
+            ]:
+                structure["datatype"] = key
 
-        else:
-            cleaned[key] = str(value)
+                if isinstance(value, dict):
+                    structure["children"] = extract_structure(value)
 
-    return cleaned
+                elif isinstance(value, list):
+
+                    child_list = []
+
+                    for item in value:
+                        child_list.append(
+                            extract_structure(item)
+                        )
+
+                    structure["children"] = child_list
+
+            else:
+                structure[key] = extract_structure(value)
+
+        return structure
+
+    elif isinstance(data, list):
+
+        return [
+            extract_structure(item)
+            for item in data
+        ]
+
+    else:
+        return str(type(data).__name__)
 
 
-def save_snapshot(environments):
+def save_snapshot(
+        environments,
+        credentials_map
+):
 
-    if not os.path.exists(SNAPSHOT_DIR):
-        os.makedirs(SNAPSHOT_DIR)
-
-    final_result = {}
+    os.makedirs("snapshots", exist_ok=True)
 
     for env in environments:
 
-        config = AWS_CONFIGS[env]
+        print(f"\nProcessing {env}")
 
-        dynamodb = boto3.client(
-            "dynamodb",
-            aws_access_key_id=config["aws_access_key_id"],
-            aws_secret_access_key=config["aws_secret_access_key"],
-            region_name=config["region"]
+        table = TABLES[env]
+
+        credentials = credentials_map[env]
+
+        dynamodb = create_client(credentials)
+
+        response = dynamodb.scan(
+            TableName=table
         )
 
-        env_data = {}
+        items = response.get("Items", [])
 
-        for table in TABLES:
+        structure = extract_structure(items)
 
-            response = dynamodb.scan(
-                TableName=table
-            )
+        output = {
+            "environment": env,
+            "table": table,
+            "item_count": len(items),
+            "structure": structure
+        }
 
-            items = response.get("Items", [])
-
-            cleaned_items = []
-
-            for item in items:
-
-                cleaned_item = convert_dynamodb_item(item)
-
-                cleaned_items.append(cleaned_item)
-
-            env_data[table] = cleaned_items
-
-            print(
-                f"{env} | {table} | Records: {len(cleaned_items)}"
-            )
-
-        snapshot_path = os.path.join(
-            SNAPSHOT_DIR,
-            f"{env.lower()}_snapshot.json"
-        )
-
-        with open(snapshot_path, "w") as f:
+        with open(
+            f"snapshots/{env}.json",
+            "w"
+        ) as file:
 
             json.dump(
-                env_data,
-                f,
+                output,
+                file,
                 indent=4
             )
 
-        final_result[env] = env_data
-
-        print(
-            f"Snapshot saved: {snapshot_path}"
-        )
-
-    return final_result
+        print(f"{env} snapshot saved")
