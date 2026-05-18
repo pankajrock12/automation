@@ -1,137 +1,90 @@
 import json
 import os
-from datetime import datetime
+import pandas as pd
+
+SNAPSHOT_DIR = "snapshots"
+
+ENVIRONMENTS = ["DEV", "TEST", "MO", "PROD"]
 
 
 def load_snapshot(env):
-    path = f"snapshots/{env.lower()}_snapshot.json"
+    path = os.path.join(SNAPSHOT_DIR, f"{env}.json")
 
     if not os.path.exists(path):
-        return {}
+        return []
 
-    with open(path, "r", encoding="utf-8") as file:
-        return json.load(file)
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def get_item_key(item):
+    """
+    Try common DynamoDB key names automatically
+    """
+
+    possible_keys = [
+        "id",
+        "ID",
+        "pk",
+        "PK",
+        "policyNumber",
+        "billNumber",
+        "lookupId",
+        "key"
+    ]
+
+    for k in possible_keys:
+        if k in item:
+            return str(item[k])
+
+    return str(hash(json.dumps(item, sort_keys=True)))
 
 
 def compare_snapshots():
 
-    dev_data = load_snapshot("dev")
-    test_data = load_snapshot("test")
-    mo_data = load_snapshot("mo")
-    prod_data = load_snapshot("prod")
+    env_data = {}
 
-    report_lines = []
+    for env in ENVIRONMENTS:
+        items = load_snapshot(env)
 
-    report_lines.append("""
-    <html>
-    <head>
-        <title>DynamoDB Validation Report</title>
-        <style>
-            body {
-                font-family: Arial;
-                margin: 20px;
-            }
-
-            table {
-                border-collapse: collapse;
-                width: 100%;
-                margin-top: 20px;
-            }
-
-            th, td {
-                border: 1px solid #ccc;
-                padding: 8px;
-                text-align: left;
-            }
-
-            th {
-                background-color: #f2f2f2;
-            }
-
-            .missing {
-                background-color: #ffcccc;
-            }
-
-            .matched {
-                background-color: #ccffcc;
-            }
-
-            .different {
-                background-color: #fff0b3;
-            }
-        </style>
-    </head>
-    <body>
-    """)
-
-    report_lines.append(
-        f"<h1>DynamoDB Validation Report</h1>"
-    )
-
-    report_lines.append(
-        f"<p>Generated: {datetime.now()}</p>"
-    )
+        env_data[env] = {
+            get_item_key(item): item
+            for item in items
+        }
 
     all_keys = set()
 
-    for dataset in [dev_data, test_data, mo_data, prod_data]:
-        all_keys.update(dataset.keys())
+    for env in ENVIRONMENTS:
+        all_keys.update(env_data[env].keys())
 
-    report_lines.append("""
-    <table>
-        <tr>
-            <th>Key</th>
-            <th>DEV</th>
-            <th>TEST</th>
-            <th>MO</th>
-            <th>PROD</th>
-            <th>Status</th>
-        </tr>
-    """)
+    rows = []
 
-    for key in sorted(all_keys):
+    for key in all_keys:
 
-        dev_value = str(dev_data.get(key, "MISSING"))
-        test_value = str(test_data.get(key, "MISSING"))
-        mo_value = str(mo_data.get(key, "MISSING"))
-        prod_value = str(prod_data.get(key, "MISSING"))
+        row = {
+            "Key": key
+        }
 
-        values = [dev_value, test_value, mo_value, prod_value]
+        values = []
 
-        if all(v == values[0] for v in values):
-            status = "MATCHED"
-            css = "matched"
+        for env in ENVIRONMENTS:
 
-        elif "MISSING" in values:
-            status = "MISSING"
-            css = "missing"
+            value = env_data[env].get(key)
 
-        else:
-            status = "DIFFERENT"
-            css = "different"
+            if value:
+                row[env] = "Present"
+                values.append(json.dumps(value, sort_keys=True))
+            else:
+                row[env] = "Missing"
 
-        report_lines.append(f"""
-        <tr class="{css}">
-            <td>{key}</td>
-            <td>{dev_value}</td>
-            <td>{test_value}</td>
-            <td>{mo_value}</td>
-            <td>{prod_value}</td>
-            <td>{status}</td>
-        </tr>
-        """)
+        row["Status"] = (
+            "MATCH"
+            if len(set(values)) == 1 and len(values) == len(ENVIRONMENTS)
+            else "DIFFERENT"
+        )
 
-    report_lines.append("""
-    </table>
-    </body>
-    </html>
-    """)
+        rows.append(row)
 
-    os.makedirs("reports", exist_ok=True)
+    df = pd.DataFrame(rows)
 
-    report_path = "reports/final_validation_report.html"
-
-    with open(report_path, "w", encoding="utf-8") as file:
-        file.write("\n".join(report_lines))
-
-    return report_path
+    return df
