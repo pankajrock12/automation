@@ -5,7 +5,9 @@ def generate_html_report(results):
 
     html = """
     <html>
+
     <head>
+
         <title>DynamoDB Validation Report</title>
 
         <style>
@@ -16,7 +18,7 @@ def generate_html_report(results):
             }
 
             h1 {
-                color: #1f77b4;
+                color: #1770b8;
             }
 
             table {
@@ -57,7 +59,7 @@ def generate_html_report(results):
 
     <body>
 
-    <h1>DynamoDB Validation Report</h1>
+        <h1>DynamoDB Validation Report</h1>
     """
 
     total_matched = 0
@@ -71,6 +73,7 @@ def generate_html_report(results):
         total_missing += result["missing"]
 
     html += f"""
+
     <h2>Summary</h2>
 
     <table>
@@ -82,9 +85,9 @@ def generate_html_report(results):
         </tr>
 
         <tr>
-            <td class='matched'>{total_matched}</td>
-            <td class='different'>{total_different}</td>
-            <td class='missing'>{total_missing}</td>
+            <td class="matched">{total_matched}</td>
+            <td class="different">{total_different}</td>
+            <td class="missing">{total_missing}</td>
         </tr>
 
     </table>
@@ -93,6 +96,7 @@ def generate_html_report(results):
     for result in results:
 
         html += f"""
+
         <h2>
             {result['base_env']} vs {result['compare_env']}
         </h2>
@@ -106,9 +110,9 @@ def generate_html_report(results):
             </tr>
 
             <tr>
-                <td class='matched'>{result['matched']}</td>
-                <td class='different'>{result['different']}</td>
-                <td class='missing'>{result['missing']}</td>
+                <td class="matched">{result['matched']}</td>
+                <td class="different">{result['different']}</td>
+                <td class="missing">{result['missing']}</td>
             </tr>
 
         </table>
@@ -117,6 +121,7 @@ def generate_html_report(results):
         if result["details"]:
 
             html += """
+
             <table>
 
                 <tr>
@@ -129,6 +134,7 @@ def generate_html_report(results):
             for item in result["details"]:
 
                 html += f"""
+
                 <tr>
                     <td>{item['lookupCode']}</td>
                     <td>{item['status']}</td>
@@ -143,16 +149,23 @@ def generate_html_report(results):
             html += "<p>No differences found</p>"
 
     html += """
+
     </body>
     </html>
     """
 
     if not os.path.exists("reports"):
+
         os.makedirs("reports")
 
     report_path = "reports/validation_report.html"
 
-    with open(report_path, "w", encoding="utf-8") as f:
-        f.write(html)
+    with open(
+        report_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        file.write(html)
 
     return report_path
