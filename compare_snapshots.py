@@ -1,9 +1,18 @@
 import boto3
 import json
 import time
+import urllib3
 
 from config import REGION
 from report_generator import generate_html_report
+
+# ======================================================
+# DISABLE SSL WARNINGS
+# ======================================================
+
+urllib3.disable_warnings(
+    urllib3.exceptions.InsecureRequestWarning
+)
 
 # ======================================================
 # DYNAMODB CLIENT
@@ -63,6 +72,10 @@ def get_table_items(table_name):
             print(f"Loaded Items : {len(items)}")
 
             time.sleep(0.2)
+
+            # SAFETY LIMIT
+            if len(items) >= 1000:
+                break
 
     except Exception as e:
 
@@ -239,10 +252,13 @@ def compare_table_structure(items1, items2, env1, env2):
 
     for item in items1:
 
-        if "lookupCode" not in item:
-            continue
+        lookup_code = item.get(
+            "lookupCode",
+            {}
+        ).get("S")
 
-        lookup_code = item["lookupCode"]["S"]
+        if not lookup_code:
+            continue
 
         map1[lookup_code] = item
 
@@ -252,10 +268,13 @@ def compare_table_structure(items1, items2, env1, env2):
 
     for item in items2:
 
-        if "lookupCode" not in item:
-            continue
+        lookup_code = item.get(
+            "lookupCode",
+            {}
+        ).get("S")
 
-        lookup_code = item["lookupCode"]["S"]
+        if not lookup_code:
+            continue
 
         map2[lookup_code] = item
 
@@ -334,6 +353,8 @@ def compare_table_structure(items1, items2, env1, env2):
 
             structure1 = extract_structure(item1)
             structure2 = extract_structure(item2)
+
+            # FULL STRUCTURE MATCH
 
             if structure1 == structure2:
 
