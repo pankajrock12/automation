@@ -13,7 +13,10 @@ st.set_page_config(
 st.title("DynamoDB Environment Validator")
 
 
+# =========================
 # NON PROD
+# =========================
+
 st.header("1. Capture DEV / TEST / MO")
 
 if st.button("Capture NONPROD Snapshots"):
@@ -32,7 +35,10 @@ if st.button("Capture NONPROD Snapshots"):
     st.success(result)
 
 
+# =========================
 # PROD
+# =========================
+
 st.header("2. Capture PROD")
 
 if st.button("Capture PROD Snapshot"):
@@ -49,7 +55,10 @@ if st.button("Capture PROD Snapshot"):
     st.success(result)
 
 
+# =========================
 # VALIDATION
+# =========================
+
 st.header("3. Run Validation")
 
 if st.button("Generate Validation Report"):
