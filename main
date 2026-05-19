@@ -1,9 +1,8 @@
+# main.py
+
 import streamlit as st
 
 from snapshot_manager import save_snapshot
-from compare_snapshots import compare_snapshots
-from config import AWS_CONFIGS
-
 
 st.set_page_config(
     page_title="DynamoDB Environment Validator",
@@ -11,7 +10,6 @@ st.set_page_config(
 )
 
 st.title("DynamoDB Environment Validator")
-
 
 # =========================
 # NON PROD
@@ -21,18 +19,23 @@ st.header("1. Capture DEV / TEST / MO")
 
 if st.button("Capture NONPROD Snapshots"):
 
-    credentials_map = {
-        "DEV": AWS_CONFIGS["DEV"],
-        "TEST": AWS_CONFIGS["TEST"],
-        "MO": AWS_CONFIGS["MO"]
-    }
+    try:
 
-    result = save_snapshot(
-        environments=["DEV", "TEST", "MO"],
-        credentials_map=credentials_map
-    )
+        environments = [
+            "DEV",
+            "TEST",
+            "MO"
+        ]
 
-    st.success(result)
+        save_snapshot(environments)
+
+        st.success(
+            "NONPROD snapshots captured successfully"
+        )
+
+    except Exception as e:
+
+        st.error(str(e))
 
 
 # =========================
@@ -43,41 +46,18 @@ st.header("2. Capture PROD")
 
 if st.button("Capture PROD Snapshot"):
 
-    credentials_map = {
-        "PROD": AWS_CONFIGS["PROD"]
-    }
+    try:
 
-    result = save_snapshot(
-        environments=["PROD"],
-        credentials_map=credentials_map
-    )
+        environments = [
+            "PROD"
+        ]
 
-    st.success(result)
+        save_snapshot(environments)
 
+        st.success(
+            "PROD snapshot captured successfully"
+        )
 
-# =========================
-# VALIDATION
-# =========================
+    except Exception as e:
 
-st.header("3. Run Validation")
-
-if st.button("Generate Validation Report"):
-
-    report_path = compare_snapshots()
-
-    st.success("Validation completed")
-
-    with open(report_path, "r", encoding="utf-8") as file:
-        html_content = file.read()
-
-    st.download_button(
-        label="Download Report",
-        data=html_content,
-        file_name="final_validation_report.html",
-        mime="text/html"
-    )
-
-    st.markdown(
-        f'<a href="file:///{report_path}" target="_blank">Open Report In New Tab</a>',
-        unsafe_allow_html=True
-    )
+        st.error(str(e))
