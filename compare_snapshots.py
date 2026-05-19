@@ -1,90 +1,77 @@
 import json
-import os
-import pandas as pd
 
-SNAPSHOT_DIR = "snapshots"
-
-ENVIRONMENTS = ["DEV", "TEST", "MO", "PROD"]
+from report_generator import generate_html_report
 
 
 def load_snapshot(env):
-    path = os.path.join(SNAPSHOT_DIR, f"{env}.json")
 
-    if not os.path.exists(path):
-        return []
+    with open(
+        f"snapshots/{env}.json",
+        "r",
+        encoding="utf-8"
+    ) as file:
 
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        return json.load(file)
 
 
-def get_item_key(item):
-    """
-    Try common DynamoDB key names automatically
-    """
+def compare_two_env(base_env, compare_env):
 
-    possible_keys = [
-        "id",
-        "ID",
-        "pk",
-        "PK",
-        "policyNumber",
-        "billNumber",
-        "lookupId",
-        "key"
-    ]
+    base_data = load_snapshot(base_env)
 
-    for k in possible_keys:
-        if k in item:
-            return str(item[k])
+    compare_data = load_snapshot(compare_env)
 
-    return str(hash(json.dumps(item, sort_keys=True)))
+    base_structure = base_data["structure"]
+
+    compare_structure = compare_data["structure"]
+
+    base_keys = set(str(base_structure))
+    compare_keys = set(str(compare_structure))
+
+    matched = len(base_keys.intersection(compare_keys))
+
+    different = len(base_keys.symmetric_difference(compare_keys))
+
+    missing = max(
+        0,
+        len(base_keys - compare_keys)
+    )
+
+    details = []
+
+    if different > 0:
+
+        details.append({
+            "lookupCode": "STRUCTURE_MISMATCH",
+            "status": "Different",
+            "table": compare_data["table"]
+        })
+
+    return {
+        "base_env": base_env,
+        "compare_env": compare_env,
+        "matched": matched,
+        "different": different,
+        "missing": missing,
+        "details": details
+    }
 
 
 def compare_snapshots():
 
-    env_data = {}
+    results = []
 
-    for env in ENVIRONMENTS:
-        items = load_snapshot(env)
+    results.append(
+        compare_two_env("DEV", "TEST")
+    )
 
-        env_data[env] = {
-            get_item_key(item): item
-            for item in items
-        }
+    results.append(
+        compare_two_env("DEV", "MO")
+    )
 
-    all_keys = set()
+    results.append(
+        compare_two_env("DEV", "PROD")
+    )
 
-    for env in ENVIRONMENTS:
-        all_keys.update(env_data[env].keys())
+    report_path = generate_html_report(results)
 
-    rows = []
-
-    for key in all_keys:
-
-        row = {
-            "Key": key
-        }
-
-        values = []
-
-        for env in ENVIRONMENTS:
-
-            value = env_data[env].get(key)
-
-            if value:
-                row[env] = "Present"
-                values.append(json.dumps(value, sort_keys=True))
-            else:
-                row[env] = "Missing"
-
-        row["Status"] = (
-            "MATCH"
-            if len(set(values)) == 1 and len(values) == len(ENVIRONMENTS)
-            else "DIFFERENT"
-        )
-
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-
-    return df
+    return report_path
