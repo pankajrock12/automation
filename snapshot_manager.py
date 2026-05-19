@@ -1,8 +1,12 @@
 import boto3
 import json
 import os
+import urllib3
 
 from config import TABLES
+
+# Disable SSL warnings
+urllib3.disable_warnings()
 
 
 def create_client(credentials):
@@ -45,7 +49,6 @@ def extract_structure(data):
                     child_list = []
 
                     for item in value:
-
                         child_list.append(
                             extract_structure(item)
                         )
@@ -53,7 +56,6 @@ def extract_structure(data):
                     structure["children"] = child_list
 
             else:
-
                 structure[key] = extract_structure(value)
 
         return structure
@@ -66,7 +68,6 @@ def extract_structure(data):
         ]
 
     else:
-
         return str(type(data).__name__)
 
 
@@ -87,26 +88,17 @@ def save_snapshot(
 
             credentials = credentials_map[env]
 
+            print("TABLE =", table)
+            print("REGION =", credentials["region"])
+
             dynamodb = create_client(credentials)
 
-            # FIRST SCAN
             response = dynamodb.scan(
-                TableName=table
+                TableName=table,
+                Limit=10
             )
 
             items = response.get("Items", [])
-
-            # PAGINATION
-            while "LastEvaluatedKey" in response:
-
-                response = dynamodb.scan(
-                    TableName=table,
-                    ExclusiveStartKey=response["LastEvaluatedKey"]
-                )
-
-                items.extend(
-                    response.get("Items", [])
-                )
 
             structure = extract_structure(items)
 
@@ -128,13 +120,13 @@ def save_snapshot(
                     indent=4
                 )
 
-            print(f"{env} snapshot saved")
+            print(f"{env} snapshot saved successfully")
 
         except Exception as e:
 
             print(f"\nERROR in {env}")
             print(str(e))
 
-            return f"Failed while processing {env}: {str(e)}"
-
-    return "Snapshots captured successfully"
+            raise Exception(
+                f"Failed while processing {env}: {str(e)}"
+            )
