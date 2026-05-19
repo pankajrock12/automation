@@ -1,63 +1,67 @@
-# main.py
-
-import streamlit as st
-
-from snapshot_manager import save_snapshot
-
-st.set_page_config(
-    page_title="DynamoDB Environment Validator",
-    layout="wide"
+from compare_schema import (
+    get_table_schema,
+    get_table_items,
+    print_schema_details,
+    compare_schema,
+    compare_table_structure
 )
 
-st.title("DynamoDB Environment Validator")
+# ======================================================
+# TABLE NAMES
+# ======================================================
 
-# =========================
-# NON PROD
-# =========================
+dev_table = "pablo-bill-lookup-table-dev"
+test_table = "pablo-bill-lookup-table-test"
 
-st.header("1. Capture DEV / TEST / MO")
+# ======================================================
+# MAIN EXECUTION
+# ======================================================
 
-if st.button("Capture NONPROD Snapshots"):
+try:
 
-    try:
+    # ==================================================
+    # GET SCHEMA
+    # ==================================================
 
-        environments = [
-            "DEV",
-            "TEST",
-            "MO"
-        ]
+    dev_schema = get_table_schema(dev_table)
+    test_schema = get_table_schema(test_table)
 
-        save_snapshot(environments)
+    # ==================================================
+    # PRINT SCHEMA
+    # ==================================================
 
-        st.success(
-            "NONPROD snapshots captured successfully"
-        )
+    print_schema_details("DEV", dev_schema)
+    print_schema_details("TEST", test_schema)
 
-    except Exception as e:
+    # ==================================================
+    # COMPARE SCHEMA
+    # ==================================================
 
-        st.error(str(e))
+    compare_schema(
+        dev_schema,
+        test_schema,
+        "DEV",
+        "TEST"
+    )
 
+    # ==================================================
+    # GET TABLE ITEMS
+    # ==================================================
 
-# =========================
-# PROD
-# =========================
+    dev_items = get_table_items(dev_table)
+    test_items = get_table_items(test_table)
 
-st.header("2. Capture PROD")
+    # ==================================================
+    # COMPARE STRUCTURE
+    # ==================================================
 
-if st.button("Capture PROD Snapshot"):
+    compare_table_structure(
+        dev_items,
+        test_items,
+        "DEV",
+        "TEST"
+    )
 
-    try:
+except Exception as e:
 
-        environments = [
-            "PROD"
-        ]
-
-        save_snapshot(environments)
-
-        st.success(
-            "PROD snapshot captured successfully"
-        )
-
-    except Exception as e:
-
-        st.error(str(e))
+    print(f"\nMAIN ERROR : {str(e)}")
