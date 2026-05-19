@@ -3,22 +3,29 @@ import json
 import os
 import urllib3
 
+from botocore.config import Config
 from config import TABLES
 
-# Disable SSL warnings
 urllib3.disable_warnings()
 
 
-def create_client(credentials):
+def create_client():
 
-    return boto3.client(
+    session = boto3.Session()
+
+    dynamodb = session.client(
         "dynamodb",
-        region_name=credentials["region"],
-        aws_access_key_id=credentials["aws_access_key_id"],
-        aws_secret_access_key=credentials["aws_secret_access_key"],
-        aws_session_token=credentials["aws_session_token"],
-        verify=False
+        region_name="us-east-1",
+        verify=False,
+        config=Config(
+            retries={
+                "max_attempts": 3,
+                "mode": "standard"
+            }
+        )
     )
+
+    return dynamodb
 
 
 def extract_structure(data):
@@ -49,6 +56,7 @@ def extract_structure(data):
                     child_list = []
 
                     for item in value:
+
                         child_list.append(
                             extract_structure(item)
                         )
@@ -56,6 +64,7 @@ def extract_structure(data):
                     structure["children"] = child_list
 
             else:
+
                 structure[key] = extract_structure(value)
 
         return structure
@@ -68,15 +77,15 @@ def extract_structure(data):
         ]
 
     else:
+
         return str(type(data).__name__)
 
 
-def save_snapshot(
-    environments,
-    credentials_map
-):
+def save_snapshot(environments):
 
     os.makedirs("snapshots", exist_ok=True)
+
+    dynamodb = create_client()
 
     for env in environments:
 
@@ -86,12 +95,7 @@ def save_snapshot(
 
             table = TABLES[env]
 
-            credentials = credentials_map[env]
-
-            print("TABLE =", table)
-            print("REGION =", credentials["region"])
-
-            dynamodb = create_client(credentials)
+            print(f"TABLE = {table}")
 
             response = dynamodb.scan(
                 TableName=table,
