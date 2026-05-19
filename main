@@ -2,6 +2,7 @@ import streamlit as st
 
 from snapshot_manager import save_snapshot
 from compare_snapshots import compare_snapshots
+from config import AWS_CONFIGS
 
 
 st.set_page_config(
@@ -12,29 +13,15 @@ st.set_page_config(
 st.title("DynamoDB Environment Validator")
 
 
-NONPROD_CREDENTIALS = {
-    "aws_access_key_id": "YOUR_NONPROD_ACCESS_KEY",
-    "aws_secret_access_key": "YOUR_NONPROD_SECRET_KEY",
-    "aws_session_token": "YOUR_NONPROD_SESSION_TOKEN",
-    "region": "us-east-1"
-}
-
-PROD_CREDENTIALS = {
-    "aws_access_key_id": "YOUR_PROD_ACCESS_KEY",
-    "aws_secret_access_key": "YOUR_PROD_SECRET_KEY",
-    "aws_session_token": "YOUR_PROD_SESSION_TOKEN",
-    "region": "us-east-1"
-}
-
-
+# NON PROD
 st.header("1. Capture DEV / TEST / MO")
 
 if st.button("Capture NONPROD Snapshots"):
 
     credentials_map = {
-        "DEV": NONPROD_CREDENTIALS,
-        "TEST": NONPROD_CREDENTIALS,
-        "MO": NONPROD_CREDENTIALS
+        "DEV": AWS_CONFIGS["DEV"],
+        "TEST": AWS_CONFIGS["TEST"],
+        "MO": AWS_CONFIGS["MO"]
     }
 
     result = save_snapshot(
@@ -45,12 +32,13 @@ if st.button("Capture NONPROD Snapshots"):
     st.success(result)
 
 
+# PROD
 st.header("2. Capture PROD")
 
 if st.button("Capture PROD Snapshot"):
 
     credentials_map = {
-        "PROD": PROD_CREDENTIALS
+        "PROD": AWS_CONFIGS["PROD"]
     }
 
     result = save_snapshot(
@@ -61,6 +49,7 @@ if st.button("Capture PROD Snapshot"):
     st.success(result)
 
 
+# VALIDATION
 st.header("3. Run Validation")
 
 if st.button("Generate Validation Report"):
@@ -69,12 +58,7 @@ if st.button("Generate Validation Report"):
 
     st.success("Validation completed")
 
-    with open(
-        report_path,
-        "r",
-        encoding="utf-8"
-    ) as file:
-
+    with open(report_path, "r", encoding="utf-8") as file:
         html_content = file.read()
 
     st.download_button(
