@@ -1,8 +1,13 @@
 import boto3
 import json
 import os
+import urllib3
 
 from config import TABLES
+
+
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def create_client(credentials):
@@ -12,7 +17,8 @@ def create_client(credentials):
         region_name=credentials["region"],
         aws_access_key_id=credentials["aws_access_key_id"],
         aws_secret_access_key=credentials["aws_secret_access_key"],
-        aws_session_token=credentials["aws_session_token"]
+        aws_session_token=credentials["aws_session_token"],
+        verify=False
     )
 
 
@@ -24,7 +30,14 @@ def extract_structure(data):
 
         for key, value in data.items():
 
-            if key in ["S", "N", "BOOL", "M", "L", "NULL"]:
+            if key in [
+                "S",
+                "N",
+                "BOOL",
+                "M",
+                "L",
+                "NULL"
+            ]:
 
                 structure["datatype"] = key
 
@@ -62,56 +75,73 @@ def save_snapshot(
     credentials_map
 ):
 
-    os.makedirs("snapshots", exist_ok=True)
+    os.makedirs(
+        "snapshots",
+        exist_ok=True
+    )
 
     for env in environments:
 
-        print(f"\nProcessing {env}")
+        try:
 
-        table = TABLES[env]
+            print(f"\nProcessing {env}")
 
-        credentials = credentials_map[env]
+            table = TABLES[env]
 
-        dynamodb = create_client(credentials)
+            credentials = credentials_map[env]
 
-        items = []
+            dynamodb = create_client(credentials)
 
-        response = dynamodb.scan(
-            TableName=table
-        )
-
-        items.extend(response.get("Items", []))
-
-        while "LastEvaluatedKey" in response:
+            items = []
 
             response = dynamodb.scan(
-                TableName=table,
-                ExclusiveStartKey=response["LastEvaluatedKey"]
+                TableName=table
             )
 
-            items.extend(response.get("Items", []))
-
-        structure = extract_structure(items)
-
-        output = {
-            "environment": env,
-            "table": table,
-            "item_count": len(items),
-            "structure": structure
-        }
-
-        with open(
-            f"snapshots/{env}.json",
-            "w",
-            encoding="utf-8"
-        ) as file:
-
-            json.dump(
-                output,
-                file,
-                indent=4
+            items.extend(
+                response.get("Items", [])
             )
 
-        print(f"{env} snapshot saved")
+            while "LastEvaluatedKey" in response:
+
+                response = dynamodb.scan(
+                    TableName=table,
+                    ExclusiveStartKey=response["LastEvaluatedKey"]
+                )
+
+                items.extend(
+                    response.get("Items", [])
+                )
+
+            structure = extract_structure(items)
+
+            output = {
+                "environment": env,
+                "table": table,
+                "item_count": len(items),
+                "structure": structure
+            }
+
+            with open(
+                f"snapshots/{env}.json",
+                "w",
+                encoding="utf-8"
+            ) as file:
+
+                json.dump(
+                    output,
+                    file,
+                    indent=4
+                )
+
+            print(f"{env} snapshot saved successfully")
+
+        except Exception as e:
+
+            print(f"\nERROR in {env}")
+
+            print(str(e))
+
+            return f"Failed while processing {env}: {str(e)}"
 
     return "Snapshots captured successfully"
