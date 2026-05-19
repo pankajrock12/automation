@@ -1,13 +1,8 @@
 import boto3
 import json
 import os
-import urllib3
 
 from config import TABLES
-
-
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def create_client(credentials):
@@ -47,10 +42,15 @@ def extract_structure(data):
 
                 elif isinstance(value, list):
 
-                    structure["children"] = [
-                        extract_structure(item)
-                        for item in value
-                    ]
+                    child_list = []
+
+                    for item in value:
+
+                        child_list.append(
+                            extract_structure(item)
+                        )
+
+                    structure["children"] = child_list
 
             else:
 
@@ -75,10 +75,7 @@ def save_snapshot(
     credentials_map
 ):
 
-    os.makedirs(
-        "snapshots",
-        exist_ok=True
-    )
+    os.makedirs("snapshots", exist_ok=True)
 
     for env in environments:
 
@@ -92,16 +89,14 @@ def save_snapshot(
 
             dynamodb = create_client(credentials)
 
-            items = []
-
+            # FIRST SCAN
             response = dynamodb.scan(
                 TableName=table
             )
 
-            items.extend(
-                response.get("Items", [])
-            )
+            items = response.get("Items", [])
 
+            # PAGINATION
             while "LastEvaluatedKey" in response:
 
                 response = dynamodb.scan(
@@ -124,8 +119,7 @@ def save_snapshot(
 
             with open(
                 f"snapshots/{env}.json",
-                "w",
-                encoding="utf-8"
+                "w"
             ) as file:
 
                 json.dump(
@@ -134,12 +128,11 @@ def save_snapshot(
                     indent=4
                 )
 
-            print(f"{env} snapshot saved successfully")
+            print(f"{env} snapshot saved")
 
         except Exception as e:
 
             print(f"\nERROR in {env}")
-
             print(str(e))
 
             return f"Failed while processing {env}: {str(e)}"
