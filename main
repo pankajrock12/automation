@@ -13,16 +13,16 @@ st.title("DynamoDB Environment Validator")
 
 
 NONPROD_CREDENTIALS = {
-    "aws_access_key_id": "PASTE_NONPROD_ACCESS_KEY",
-    "aws_secret_access_key": "PASTE_NONPROD_SECRET_KEY",
-    "aws_session_token": "PASTE_NONPROD_SESSION_TOKEN",
+    "aws_access_key_id": "YOUR_NONPROD_ACCESS_KEY",
+    "aws_secret_access_key": "YOUR_NONPROD_SECRET_KEY",
+    "aws_session_token": "YOUR_NONPROD_SESSION_TOKEN",
     "region": "us-east-1"
 }
 
 PROD_CREDENTIALS = {
-    "aws_access_key_id": "PASTE_PROD_ACCESS_KEY",
-    "aws_secret_access_key": "PASTE_PROD_SECRET_KEY",
-    "aws_session_token": "PASTE_PROD_SESSION_TOKEN",
+    "aws_access_key_id": "YOUR_PROD_ACCESS_KEY",
+    "aws_secret_access_key": "YOUR_PROD_SECRET_KEY",
+    "aws_session_token": "YOUR_PROD_SESSION_TOKEN",
     "region": "us-east-1"
 }
 
@@ -69,7 +69,12 @@ if st.button("Generate Validation Report"):
 
     st.success("Validation completed")
 
-    with open(report_path, "r", encoding="utf-8") as file:
+    with open(
+        report_path,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
         html_content = file.read()
 
     st.download_button(
