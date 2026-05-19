@@ -12,8 +12,7 @@ def create_client(credentials):
         region_name=credentials["region"],
         aws_access_key_id=credentials["aws_access_key_id"],
         aws_secret_access_key=credentials["aws_secret_access_key"],
-        aws_session_token=credentials["aws_session_token"],
-        verify=False
+        aws_session_token=credentials["aws_session_token"]
     )
 
 
@@ -25,31 +24,23 @@ def extract_structure(data):
 
         for key, value in data.items():
 
-            if key in [
-                "S",
-                "N",
-                "BOOL",
-                "M",
-                "L",
-                "NULL"
-            ]:
+            if key in ["S", "N", "BOOL", "M", "L", "NULL"]:
+
                 structure["datatype"] = key
 
                 if isinstance(value, dict):
+
                     structure["children"] = extract_structure(value)
 
                 elif isinstance(value, list):
 
-                    child_list = []
-
-                    for item in value:
-                        child_list.append(
-                            extract_structure(item)
-                        )
-
-                    structure["children"] = child_list
+                    structure["children"] = [
+                        extract_structure(item)
+                        for item in value
+                    ]
 
             else:
+
                 structure[key] = extract_structure(value)
 
         return structure
@@ -62,12 +53,13 @@ def extract_structure(data):
         ]
 
     else:
+
         return str(type(data).__name__)
 
 
 def save_snapshot(
-        environments,
-        credentials_map
+    environments,
+    credentials_map
 ):
 
     os.makedirs("snapshots", exist_ok=True)
@@ -82,11 +74,22 @@ def save_snapshot(
 
         dynamodb = create_client(credentials)
 
+        items = []
+
         response = dynamodb.scan(
             TableName=table
         )
 
-        items = response.get("Items", [])
+        items.extend(response.get("Items", []))
+
+        while "LastEvaluatedKey" in response:
+
+            response = dynamodb.scan(
+                TableName=table,
+                ExclusiveStartKey=response["LastEvaluatedKey"]
+            )
+
+            items.extend(response.get("Items", []))
 
         structure = extract_structure(items)
 
@@ -99,7 +102,8 @@ def save_snapshot(
 
         with open(
             f"snapshots/{env}.json",
-            "w"
+            "w",
+            encoding="utf-8"
         ) as file:
 
             json.dump(
@@ -109,3 +113,5 @@ def save_snapshot(
             )
 
         print(f"{env} snapshot saved")
+
+    return "Snapshots captured successfully"
