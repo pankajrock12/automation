@@ -1,0 +1,96 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Name Formatter Tester</title>
+<style>
+body{font-family:Arial;margin:20px}
+textarea,input{width:100%;padding:8px;margin:6px 0}
+button{padding:10px 16px;margin:5px}
+pre{background:#f4f4f4;padding:10px;white-space:pre-wrap;word-break:break-all}
+</style>
+</head>
+<body>
+<h2>Name Formatter Tester (79 + Mandatory Space = 80)</h2>
+
+<label>First Name</label>
+<textarea id="first" rows="3"></textarea>
+
+<label>Last Name</label>
+<textarea id="last" rows="3"></textarea>
+
+<button onclick="run()">Format</button>
+<button onclick="downloadTxt()">Download Output.txt</button>
+
+<h3>Result</h3>
+<div>Length: <span id="len"></span></div>
+<pre id="out"></pre>
+
+<script>
+function formatName(firstName="", lastName=""){
+    const MAX=79;
+    firstName=(firstName||"").trim();
+    lastName=(lastName||"").trim();
+
+    const hasFirst=firstName.length>0;
+    const hasLast=lastName.length>0;
+
+    if(!hasFirst && !hasLast){
+        return " ".repeat(80);
+    }
+
+    if(hasFirst && !hasLast){
+        return firstName.substring(0,MAX).padEnd(MAX," ")+" ";
+    }
+
+    if(!hasFirst && hasLast){
+        return lastName.substring(0,MAX).padEnd(MAX," ")+" ";
+    }
+
+    const total=firstName.length+lastName.length+1;
+
+    if(total<=MAX){
+        return (firstName+" "+lastName).padEnd(MAX," ")+" ";
+    }
+
+    if(firstName.length<=39){
+        const lastAllowed=MAX-firstName.length-1;
+        return firstName+" "+lastName.substring(0,lastAllowed)+" ";
+    }
+
+    if(lastName.length<=39){
+        const firstAllowed=MAX-lastName.length-1;
+        return firstName.substring(0,firstAllowed)+" "+lastName+" ";
+    }
+
+    return firstName.substring(0,39)+" "+lastName.substring(0,39)+" ";
+}
+
+let latest="";
+
+function visualize(s){
+    return s.replace(/ /g,"·");
+}
+
+function run(){
+    latest=formatName(
+        document.getElementById("first").value,
+        document.getElementById("last").value
+    );
+    document.getElementById("len").innerText=latest.length;
+    document.getElementById("out").innerText=visualize(latest);
+}
+
+function downloadTxt(){
+    if(latest==="") run();
+    const blob=new Blob([latest],{type:"text/plain"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="output.txt";
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
